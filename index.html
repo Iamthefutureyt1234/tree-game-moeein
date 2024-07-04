@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بازی جلوگیری از فرونشست زمین</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #game-container {
+            width: 600px;
+            height: 600px;
+            background-color: #8B4513;
+            position: relative;
+            overflow: hidden;
+            cursor: none;
+        }
+        .person {
+            width: 20px;
+            height: 20px;
+            background-color: #000;
+            position: absolute;
+            border-radius: 50%;
+        }
+        .tree {
+            width: 30px;
+            height: 30px;
+            background-color: #228B22;
+            position: absolute;
+            border-radius: 50% 50% 0 0;
+        }
+        .crack {
+            position: absolute;
+            background-color: #3a1f0d;
+            transform: rotate(45deg);
+        }
+        #player {
+            width: 20px;
+            height: 20px;
+            background-color: #FF0000;
+            position: absolute;
+            border-radius: 50%;
+            z-index: 10;
+        }
+        #score, #time, #cooldown, #game-over {
+            position: absolute;
+            font-size: 18px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+            z-index: 100;
+        }
+        #score { top: 10px; left: 10px; }
+        #time { top: 10px; right: 10px; }
+        #cooldown { bottom: 10px; left: 10px; }
+        #game-over {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: red;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="player"></div>
+        <div id="score">امتیاز: <span id="score-value">0</span></div>
+        <div id="time">زمان: <span id="time-value">0</span></div>
+        <div id="cooldown">زمان انتظار: <span id="cooldown-value">0</span></div>
+        <div id="game-over">بازی تمام شد!</div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const scoreElement = document.getElementById('score-value');
+        const timeElement = document.getElementById('time-value');
+        const cooldownElement = document.getElementById('cooldown-value');
+        const gameOverElement = document.getElementById('game-over');
+
+        let score = 0;
+        let gameOver = false;
+        let subsidence = 0;
+        let gameTime = 0;
+        let canPlantTree = true;
+        let cooldownTime = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        let trees = [];
+
+        function createPerson() {
+            const person = document.createElement('div');
+            person.className = 'person';
+            person.style.left = Math.random() * 580 + 'px';
+            person.style.top = Math.random() * 580 + 'px';
+            gameContainer.appendChild(person);
+        }
+
+        function plantTree() {
+            if (gameOver || !canPlantTree) return;
+
+            const playerRect = player.getBoundingClientRect();
+            const containerRect = gameContainer.getBoundingClientRect();
+            const x = playerRect.left - containerRect.left;
+            const y = playerRect.top - containerRect.top;
+
+            // Check if there's already a tree at this position
+            for (let tree of trees) {
+                const treeRect = tree.getBoundingClientRect();
+                if (Math.abs(treeRect.left - playerRect.left) < 30 && Math.abs(treeRect.top - playerRect.top) < 30) {
+                    return; // Don't plant if there's already a tree here
+                }
+            }
+
+            const tree = document.createElement('div');
+            tree.className = 'tree';
+            tree.style.left = x + 'px';
+            tree.style.top = y + 'px';
+            gameContainer.appendChild(tree);
+            trees.push(tree);
+
+            score += 10;
+            scoreElement.textContent = score;
+
+            subsidence = Math.max(0, subsidence - 5);
+
+            canPlantTree = false;
+            cooldownTime = 1;
+        }
+
+        function createCrack() {
+            const crack = document.createElement('div');
+            crack.className = 'crack';
+            crack.style.width = Math.random() * 30 + 10 + 'px';
+            crack.style.height = '2px';
+            crack.style.left = Math.random() * 600 + 'px';
+            crack.style.top = Math.random() * 600 + 'px';
+            gameContainer.appendChild(crack);
+        }
+
+        function updatePlayerPosition() {
+            const playerRect = player.getBoundingClientRect();
+            const containerRect = gameContainer.getBoundingClientRect();
+            
+            const targetX = mouseX - containerRect.left - playerRect.width / 2;
+            const targetY = mouseY - containerRect.top - playerRect.height / 2;
+            
+            const currentX = parseFloat(player.style.left) || 0;
+            const currentY = parseFloat(player.style.top) || 0;
+            
+            const dx = (targetX - currentX) * 0.1;
+            const dy = (targetY - currentY) * 0.1;
+            
+            player.style.left = (currentX + dx) + 'px';
+            player.style.top = (currentY + dy) + 'px';
+        }
+
+        function updateGame() {
+            if (gameOver) return;
+
+            gameTime++;
+            timeElement.textContent = Math.floor(gameTime / 60);
+
+            subsidence += 0.1;
+
+            if (subsidence >= 100) {
+                gameOver = true;
+                gameOverElement.style.display = 'block';
+                return;
+            }
+
+            const brightness = Math.max(50, 100 - subsidence);
+            gameContainer.style.filter = `brightness(${brightness}%)`;
+
+            if (subsidence > 70 && Math.random() < 0.02) {
+                createCrack();
+            }
+
+            if (!canPlantTree) {
+                cooldownTime -= 1/60;
+                if (cooldownTime <= 0) {
+                    canPlantTree = true;
+                    cooldownTime = 0;
+                }
+                cooldownElement.textContent = cooldownTime.toFixed(1);
+            } else {
+                cooldownElement.textContent = '0';
+            }
+
+            updatePlayerPosition();
+
+            requestAnimationFrame(updateGame);
+        }
+
+        gameContainer.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        gameContainer.addEventListener('click', plantTree);
+
+        for (let i = 0; i < 5; i++) {
+            createPerson();
+        }
+
+        updateGame();
+    </script>
+</body>
+</html>
